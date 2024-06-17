@@ -5,6 +5,7 @@ import requests
 import json
 import os
 from tqdm.auto import tqdm
+import sqlite3
 
 api_key = os.getenv("MISTRAL_API_KEY")
 
@@ -31,6 +32,7 @@ def clean_text(extraction):
                     - Buchungstext:
                     - Verwendungszweck: 
 
+                    Es ist wichtig, dass Du für jegliche Buchungen exakt dieses Format einhälst, ansonsten kann dein Output nicht verarbeitet werden!
                     Alle weiteren Informationen, welche nicht Buchungen sind, sollen auch als Block dargestellt werden. 
                 """.strip()
             },
@@ -50,41 +52,50 @@ def clean_text(extraction):
     answer = response_object["choices"][0]["message"]["content"]
     return answer
 
-def extract_text_from_pdf(pdf_path, verbose=False):
-    # Open the PDF
-    doc = fitz.open(pdf_path)
+def isolate_values(text): 
+    # Split the text by the booking header
+    bookings = text.split('### ')
 
-    # Initialize EasyOCR reader
-    reader = easyocr.Reader(['de'])  # Change 'en' to the language you want to extract
+    # Iterate over the bookings
+    value_dict = []
+    for booking in bookings:
+        if "Buchung" in booking:
+            lines = text.split('\n')
 
-    # Iterate over each page
-    cleaned_content = []
-    for page_index in tqdm(range(len(doc))):
-        # Get the page
-        page = doc[page_index]
+            # Prepare a dictionary to store the values
+            values = {}
+
+            # Iterate over the lines
+            for line in lines:
+                if line.startswith("-"):
+                    key, value = line.split(': ')
+                    key = key.replace("- ", "")
+                    values[key] = value
+            value_dict.append(values)
+    return value_dict
+
+def inject_values(value_dict, database_name="finance.db"):
+    """
+    value_dict is a list of dictionaries, where each dictionary contains the values for a single booking. The keys of the dictionary are the column names of the database table. The values are the values for the respective column.
+    databse_name is the name of the database file. 
+    """
+    # Create a connection to the database
+    conn = sqlite3.connect(database_name)
+
+    # Create a cursor object
+    c = conn.cursor()
+
+    for  values in value_dict:
+        # Now you can insert the values into the database
+        c.execute('''INSERT INTO Buchungswerte VALUES
+                            (?, ?, ?, ?, ?, ?)''',
+                        (values['Auftraggeber/Empfänger'],
+                        values['Saldo'],
+                        values['Betrag'],
+                        values['Valuta'],
+                        values['Buchungstext'],
+                        values['Verwendungszweck']))
         
-
-        # Convert the page to an image
-        pix = page.get_pixmap(dpi=300)
-        pix.save("temp_page.png")  # Save as a temporary image
-
-        # Extract text from the image
-        result = reader.readtext("temp_page.png")
-
-        # Print the extracted text
-        page_content = []
-        for text_block in result:
-            page_content.append(text_block[1])
-        if verbose:
-            page_text = "\n".join(page_content)
-            print(f"Page {page_index + 1}:\n{page_text}")
-            print("\n -------- \n")
-            cleaned_text = clean_text(page_text)
-            print(f"Cleaned Page {page_index + 1}:\n{cleaned_text}")
-            print("\n -------- \n")
-        else:
-            page_text = "\n".join(page_content)
-            cleaned_text = clean_text(page_text)
-            cleaned_content.append(cleaned_text)
-    
-    return cleaned_content
+        # Commit the changes and close the connection
+        conn.commit()
+    conn.close()
