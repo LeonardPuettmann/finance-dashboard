@@ -24,11 +24,11 @@ def main():
 
         # Iterate over each page
         cleaned_content = []
-        for page_index in range(len(doc)):
+        for page_index, page in enumerate(doc):
             # Update the progress bar
             progress_bar.progress((page_index + 1) / len(doc))
-
-            # Get the page
+            
+            # Process the page
             page = doc[page_index]
 
             # Convert the page to an image
@@ -44,7 +44,9 @@ def main():
                 page_content.append(text_block[1])
 
             page_text = "\n".join(page_content)
+            print(page_text)
             cleaned_text = clean_text(page_text)
+            print(cleaned_text)
             cleaned_content.append(cleaned_text)
 
         for content in cleaned_content:
@@ -52,7 +54,7 @@ def main():
             inject_values(isolted_values) # injects the values into the database
 
         # Create a connection to the database
-        conn = sqlite3.connect('my_database.db')
+        conn = sqlite3.connect('finance.db')
 
         # Query the data from the database
         df = pd.read_sql_query("SELECT * FROM Buchungswerte", conn)
