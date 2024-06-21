@@ -23,7 +23,6 @@ def main():
         progress_bar = st.progress(0)
 
         # Iterate over each page
-        cleaned_content = []
         for page_index, page in enumerate(doc):
             # Update the progress bar
             progress_bar.progress((page_index + 1) / len(doc))
@@ -45,14 +44,20 @@ def main():
 
             page_text = "\n".join(page_content)
             print(page_text)
+            print("----")
             cleaned_text = clean_text(page_text)
             print(cleaned_text)
-            cleaned_content.append(cleaned_text)
-
-        for content in cleaned_content:
-            isolted_values = isolate_values(content) # returns a list of dicts with the values isolated
+            print("----")
+            isolted_values = isolate_values(cleaned_text) # returns a list of dicts with the values isolated
+            print(isolted_values)
+            print("----")
             inject_values(isolted_values) # injects the values into the database
+            
+        # Finish the progress bar
+        progress_bar.empty()
 
+    # Create a button
+    if st.button('Load Database'):
         # Create a connection to the database
         conn = sqlite3.connect('finance.db')
 
@@ -64,9 +69,6 @@ def main():
 
         # Use Streamlit to display the data as a table
         st.table(df)
-
-        # Finish the progress bar
-        progress_bar.empty()
 
 if __name__ == "__main__":
     main()

@@ -9,7 +9,7 @@ import sqlite3
 
 api_key = os.getenv("MISTRAL_API_KEY")
 
-@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+#@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def clean_text(extraction):
     headers = {
         'Content-Type': 'application/json',
@@ -48,11 +48,10 @@ def clean_text(extraction):
     response = requests.post("https://api.mistral.ai/v1/chat/completions", headers=headers, data=json.dumps(payload))
     response.raise_for_status()  # Raise an exception for HTTP errors
     response_object = response.json()
-    print(response_object)
     answer = response_object["choices"][0]["message"]["content"]
     return answer
 
-def isolate_values(text): 
+def isolate_values(text):
     # Split the text by the booking header
     bookings = text.split('### ')
 
@@ -60,7 +59,11 @@ def isolate_values(text):
     value_dict = []
     for booking in bookings:
         if "Buchung" in booking:
-            lines = text.split('\n')
+            # Remove the booking header
+            booking = booking.strip()
+
+            # Split the booking into lines
+            lines = booking.split('\n')
 
             # Prepare a dictionary to store the values
             values = {}
@@ -68,7 +71,7 @@ def isolate_values(text):
             # Iterate over the lines
             for line in lines:
                 if line.startswith("-"):
-                    key, value = line.split(': ')
+                    key, value = line.split(': ', 1)
                     key = key.replace("- ", "")
                     values[key] = value
             value_dict.append(values)
@@ -85,7 +88,7 @@ def inject_values(value_dict, database_name="finance.db"):
     # Create a cursor object
     c = conn.cursor()
 
-    for  values in value_dict:
+    for values in value_dict:
         # Now you can insert the values into the database
         c.execute('''INSERT INTO Buchungswerte VALUES
                             (?, ?, ?, ?, ?, ?)''',
