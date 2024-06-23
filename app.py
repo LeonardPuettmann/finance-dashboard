@@ -4,10 +4,11 @@ import fitz
 import easyocr
 import sqlite3
 import pandas as pd
+import numpy as np
 
 
 def main():
-    st.title('PDF File Processor')
+    st.title('Finance dashboard')
     st.write('Upload a PDF file for processing')
 
     # Create a file uploader
@@ -55,18 +56,40 @@ def main():
             
         # Finish the progress bar
         progress_bar.empty()
+        
+    # Create a connection to the database
+    conn = sqlite3.connect('finance.db')
 
+    # Query the data from the database
+    df = pd.read_sql_query("SELECT * FROM Buchungswerte", conn)
+
+    # Fill missing values in the 'Saldo' column with the previous values
+    df['Saldo'] = df['Saldo'].fillna(method='ffill')
+    df['Valuta'] = df['Valuta'].replace('NA', np.nan).fillna(method='ffill')
+
+    # Convert the 'Valuta' column to datetime
+    df['Valuta'] = pd.to_datetime(df['Valuta'], format='%d.%m.%Y')
+
+    # Create a new column 'Saldo_numeric' with the integer part of 'Saldo' and without commas and dots
+    df['Saldo_numeric'] = pd.to_numeric(df['Saldo'].str.split(',', expand=True)[0].str.replace('.', '').str.replace(',', ''), errors='coerce')
+
+    # Fill missing values in the 'Saldo_numeric' column with the previous values
+    df['Saldo_numeric'] = df['Saldo_numeric'].fillna(method='ffill')
+
+    # Group the DataFrame by 'Valuta' and take the sum of 'Saldo_numeric' for each group
+    df_grouped = df.groupby('Valuta')['Saldo_numeric'].sum().reset_index()
+
+    # Sort the DataFrame by 'Saldo_numeric' in descending order
+    df_sorted = df_grouped.sort_values(by='Saldo_numeric', ascending=False)
+
+    # Create a bar chart with 'Valuta' as the x-axis and 'Saldo_numeric' as the y-axis
+    st.bar_chart(df_sorted.set_index('Valuta')['Saldo_numeric'])
+
+    # Close the connection
+    conn.close()
+    
     # Create a button
-    if st.button('Load Database'):
-        # Create a connection to the database
-        conn = sqlite3.connect('finance.db')
-
-        # Query the data from the database
-        df = pd.read_sql_query("SELECT * FROM Buchungswerte", conn)
-
-        # Close the connection
-        conn.close()
-
+    if st.button('Show Database'):
         # Use Streamlit to display the data as a table
         st.table(df)
 

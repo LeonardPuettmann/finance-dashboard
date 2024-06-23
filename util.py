@@ -32,6 +32,7 @@ def clean_text(extraction):
                     - Buchungstext:
                     - Verwendungszweck: 
 
+                    Diese Felder müssen IMMER angegeben sein, auch wenn sie leer sind. Wenn ein Feld nicht vorhanden ist, dann füge dort ein 'NA' ein.
                     Es ist wichtig, dass Du für jegliche Buchungen exakt dieses Format einhälst, ansonsten kann dein Output nicht verarbeitet werden!
                     Alle weiteren Informationen, welche nicht Buchungen sind, sollen auch als Block dargestellt werden. 
                 """.strip()
@@ -41,7 +42,7 @@ def clean_text(extraction):
                 "content": f"<<< Säubere diesen Text: {extraction} >>>"
             }
         ],
-        "max_tokens": 4096,	
+        "max_tokens": 2048,	
         "temperature": 0.0
     }
 
@@ -80,7 +81,7 @@ def isolate_values(text):
 def inject_values(value_dict, database_name="finance.db"):
     """
     value_dict is a list of dictionaries, where each dictionary contains the values for a single booking. The keys of the dictionary are the column names of the database table. The values are the values for the respective column.
-    databse_name is the name of the database file. 
+    databse_name is the name of the database file.
     """
     # Create a connection to the database
     conn = sqlite3.connect(database_name)
@@ -90,15 +91,14 @@ def inject_values(value_dict, database_name="finance.db"):
 
     for values in value_dict:
         # Now you can insert the values into the database
-        c.execute('''INSERT INTO Buchungswerte VALUES
+        c.execute('''INSERT OR IGNORE INTO Buchungswerte VALUES
                             (?, ?, ?, ?, ?, ?)''',
-                        (values['Auftraggeber/Empfänger'],
-                        values['Saldo'],
-                        values['Betrag'],
-                        values['Valuta'],
-                        values['Buchungstext'],
-                        values['Verwendungszweck']))
-        
-        # Commit the changes and close the connection
-        conn.commit()
-    conn.close()
+                    (values.get('Auftraggeber/Empfänger', 'NA'),
+                    values.get('Saldo', 'NA'),
+                    values.get('Betrag', 'NA'),
+                    values.get('Valuta', 'NA'),
+                    values.get('Buchungstext', 'NA'),
+                    values.get('Verwendungszweck', 'NA')))
+
+    # Commit the changes and close the connection
+    conn.commit()
